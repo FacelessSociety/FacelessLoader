@@ -634,7 +634,6 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
     void(*kernel_entry)(struct RuntimeDataAndServices) = ((__attribute__((sysv_abi))void(*)(struct RuntimeDataAndServices))header.e_entry);
     boot_mode = 0;
-    refresh_wallpaper();
     sysTable->BootServices->ExitBootServices(imageHandle, mapKey);
     kernel_entry(runtime_services);
 
