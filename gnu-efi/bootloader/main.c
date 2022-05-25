@@ -80,6 +80,15 @@ struct RuntimeDataAndServices {
         uint32_t x;
         uint32_t y;
     } canvas;
+
+    struct Terminal {
+        uint32_t x;
+        uint32_t y;
+        uint32_t w;         // Width.
+        uint32_t h;         // Height.
+        uint32_t c_x;       // Cursor x.
+        uint32_t c_y;       // Cursor y.
+    } terminal;
     
     struct BMP* wallpaper;
 
@@ -239,8 +248,8 @@ void lfb_write(const char* str, uint32_t color) {
     while (str[str_sz++]);
     
     for (size_t i = 0; i < str_sz - 1; ++i) {
-        putChar(color, str[i], runtime_services.canvas.x*8, runtime_services.canvas.y);
-        ++runtime_services.canvas.x;
+        putChar(color, str[i], runtime_services.canvas.x+8, runtime_services.canvas.y);
+        runtime_services.canvas.x += 8;             // Increment canvas x.
     }
 }
 
@@ -302,9 +311,38 @@ void blit_wallpaper(uint32_t xpos, uint32_t ypos) {
     }
 }
 
+
+void term_write(const char* str, uint32_t color) {
+    // Save old canvas position.
+    uint32_t old_canvas_x = runtime_services.canvas.x, old_canvas_y = runtime_services.canvas.y;
+    // Set canvas position to where we want to write on terminal.
+    runtime_services.canvas.x = ((runtime_services.terminal.x)) + runtime_services.terminal.c_x;
+    runtime_services.canvas.y = runtime_services.terminal.y + runtime_services.terminal.c_y + 10;
+    lfb_write(str, color);
+
+    // Get string size.
+    size_t str_sz = 0;
+    while (str[str_sz++]);
+
+    // Increment cursor x by string size.
+    runtime_services.terminal.c_x += (str_sz * 8);
+    
+    // Restore old canvas position.
+    runtime_services.canvas.x = old_canvas_x;
+    runtime_services.canvas.y = old_canvas_y;
+}
+
+
 void display_terminal(uint32_t xpos, uint32_t ypos) {
     const uint64_t WIDTH = 1000;
     const uint64_t HEIGHT = 500;
+
+    runtime_services.terminal.x = xpos;
+    runtime_services.terminal.y = ypos;
+    runtime_services.terminal.w = WIDTH;
+    runtime_services.terminal.h = HEIGHT;
+    runtime_services.terminal.c_x = 0;
+    runtime_services.terminal.c_y = 0;
 
     uint32_t* screen = runtime_services.framebuffer_data.base_addr;
 
@@ -430,6 +468,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
 
     runtime_services.framebuffer_write = lfb_write;
+    term_write("Hello, World!", 0xFF0000);
 
     __asm__ __volatile__("cli; hlt");
 
