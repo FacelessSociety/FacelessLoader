@@ -123,6 +123,13 @@ void init_gop(void) {
 }
 
 
+size_t strlen(const char* str) {
+    size_t n = 0;
+    while (str[n++]);
+    return n - 1;
+}
+
+
 
 EFI_FILE_HANDLE get_volume(EFI_HANDLE image) {
   EFI_LOADED_IMAGE *loaded_image = NULL;                  // Image interface
@@ -247,8 +254,7 @@ void putChar(unsigned int color, char chr, unsigned int xOff, unsigned int yOff)
 
 
 void lfb_write(const char* str, uint32_t color) {
-    size_t str_sz = 0;
-    while (str[str_sz++]);
+    size_t str_sz = strlen(str);
     
     for (size_t i = 0; i < str_sz - 1; ++i) {
         putChar(color, str[i], runtime_services.canvas.x+8, runtime_services.canvas.y);
@@ -324,8 +330,7 @@ void term_write(const char* str, uint32_t color) {
     lfb_write(str, color);
 
     // Get string size.
-    size_t str_sz = 0;
-    while (str[str_sz++]);
+    size_t str_sz = strlen(str);
 
     // Increment cursor x by string size.
     runtime_services.terminal.c_x += (str_sz * 8);
@@ -337,9 +342,7 @@ void term_write(const char* str, uint32_t color) {
 
 void term_write_xy(const char* str, uint32_t color, uint32_t x, uint32_t y) {
     // Get string size.
-    size_t str_sz = 0;
-    while (str[str_sz++]);
-    --str_sz;
+    size_t str_sz = strlen(str);
 
     // Write it out.
     for (size_t i = 0; i < str_sz; ++i) {
@@ -403,8 +406,7 @@ void display_terminal(uint32_t xpos, uint32_t ypos) {
 
     // Draw title bar.
     if (boot_mode) {
-        size_t title_length = 0;
-        while (TITLE[title_length++]);
+        size_t title_length = strlen(TITLE);
         uint32_t xpos_mid = (xpos*2)+(WIDTH/title_length);
         term_write_xy(TITLE, 0xA9A9A9, xpos_mid, ypos);
     }
