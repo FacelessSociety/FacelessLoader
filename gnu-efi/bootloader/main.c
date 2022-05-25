@@ -16,7 +16,7 @@
 // Macros for PSF1 font.
 #define PSF1_MAGIC0 0x00000036
 #define PSF1_MAGIC1 0x00000004
-#define PSF1_HEADER_SIZE 3
+#define PSF1_HEADER_SIZE 4
 
 
 struct __attribute__((packed)) BMP {
@@ -73,14 +73,21 @@ struct RuntimeDataAndServices {
     } *psf1_font_header;
 
     struct PSF1_FONT { 
-        struct PSF1_HEADER* header;
         void* glyphBuffer;
     } *psf1_font;
+
+    struct Canvas {
+        uint32_t x;
+        uint32_t y;
+    } canvas;
     
     struct BMP* wallpaper;
 
+    // SERVICE WILL BE NULL IF IT IS NOT AVAILABLE.
+    // MAKE SURE TO CHECK BEFORE USING IT.
     void(*display_wallpaper)(void);
     void(*display_terminal)(uint32_t x, uint32_t y);
+    void(*framebuffer_write)(const char* str, uint32_t color);
 } runtime_services;
 
 
@@ -174,7 +181,7 @@ void load_font(EFI_FILE* dir, CHAR16* path, EFI_HANDLE imageHandle, EFI_SYSTEM_T
 
     // Font does not exist!
     if (!(font)) {
-        runtime_services.psf1_font = NULL;
+        runtime_services.psf1_font_header = NULL;
         return;
     }
 
@@ -210,6 +217,31 @@ void load_font(EFI_FILE* dir, CHAR16* path, EFI_HANDLE imageHandle, EFI_SYSTEM_T
 
 uint32_t get_pixel_idx(int x, int y) {
   return x + y * runtime_services.framebuffer_data.width;
+}
+
+void putChar(unsigned int color, char chr, unsigned int xOff, unsigned int yOff) {
+    unsigned int* pixPtr = (unsigned int*)runtime_services.framebuffer_data.base_addr;
+    char* fontPtr = runtime_services.psf1_font->glyphBuffer + (chr * runtime_services.psf1_font_header->chsize);
+    for (unsigned long y = yOff; y < yOff + 16; y++){
+        for (unsigned long x = xOff; x < xOff+8; x++){
+            if ((*fontPtr & (0b10000000 >> (x - xOff))) > 0){
+                    *(unsigned int*)(pixPtr + x + (y * runtime_services.framebuffer_data.ppsl)) = color;
+                }
+
+        }
+        fontPtr++;
+    }
+}
+
+
+void lfb_write(const char* str, uint32_t color) {
+    size_t str_sz = 0;
+    while (str[str_sz++]);
+    
+    for (size_t i = 0; i < str_sz - 1; ++i) {
+        putChar(color, str[i], runtime_services.canvas.x*8, runtime_services.canvas.y);
+        ++runtime_services.canvas.x;
+    }
 }
 
 
@@ -360,8 +392,11 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
     runtime_services.mmap.map = map;
     runtime_services.mmap.mapSize = mapSize;
     runtime_services.mmap.mapDescSize = descSize;
+    
+    runtime_services.canvas.x = 0;
+    runtime_services.canvas.y = 0;
 
-    // Load fonts.
+    // Load font.
     load_font(NULL, PSF1_FONT_PATH, imageHandle, sysTable);
 
     if (runtime_services.psf1_font_header == NULL) {
@@ -388,7 +423,13 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
             display_terminal(250, 50);                                   // Display boot menu.
         }
     }
+#else
+    runtime_services.display_wallpaper = NULL;
+    runtime_services.display_terminal = NULL;
 #endif 
+
+
+    runtime_services.framebuffer_write = lfb_write;
 
     __asm__ __volatile__("cli; hlt");
 
