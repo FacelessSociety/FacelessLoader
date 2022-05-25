@@ -52,6 +52,8 @@ struct RuntimeDataAndServices {
     } framebuffer_data;
     
     struct BMP* wallpaper;
+
+    void(*display_wallpaper)(void);
 } runtime_services;
 
 
@@ -221,7 +223,8 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
         // Verify that the signature is equal to 'BM'.
         if ((wallpaper->header.signature & 0xFF) == 'B' && (wallpaper->header.signature >> 8) == 'M') {
             read_wallpaper_data(wallpaper);               // Dump data if verbose mode is on.
-            display_wallpaper();  
+            display_wallpaper();
+            runtime_services.display_wallpaper = display_wallpaper;
         }
     }
 #endif
