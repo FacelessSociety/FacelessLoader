@@ -102,7 +102,20 @@ struct RuntimeDataAndServices {
     void(*display_terminal)(uint32_t x, uint32_t y);
     void(*framebuffer_write)(const char* str, uint32_t color, uint32_t restore_to);
     void(*term_write)(const char* str, uint32_t color);
+    uint64_t(*get_mmap_entries)(void);
+    EFI_MEMORY_DESCRIPTOR*(*index_mmap)(uint64_t index);
 } runtime_services;
+
+
+uint64_t get_mmap_entries(void) {
+    return runtime_services.mmap.mapSize / runtime_services.mmap.mapDescSize;
+}
+
+
+// Returns an mmap descriptor at a given index.
+EFI_MEMORY_DESCRIPTOR* mmap_iterator_helper(uint64_t i) {
+    return (EFI_MEMORY_DESCRIPTOR*)((int64_t)runtime_services.mmap.map + (i * (runtime_services.mmap.mapDescSize)));
+}
 
 
 void refresh_wallpaper(void);
@@ -554,6 +567,8 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
     runtime_services.framebuffer_write = lfb_write;
     runtime_services.refresh_wallpaper = refresh_wallpaper;
     runtime_services.term_write = term_write;
+    runtime_services.get_mmap_entries = get_mmap_entries;
+    runtime_services.index_mmap = mmap_iterator_helper;
     term_write("\n\t\t\tBoot [X]\n\n\t\t\tReboot []", 0x7DF9FF);
 
     uint8_t menuEntry = 0;      // BOOT: 0, REBOOT: 1
