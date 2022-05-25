@@ -98,6 +98,7 @@ struct RuntimeDataAndServices {
     // SERVICE WILL BE NULL IF IT IS NOT AVAILABLE.
     // MAKE SURE TO CHECK BEFORE USING IT.
     void(*display_wallpaper)(void);
+    void(*refresh_wallpaper)(void);
     void(*display_terminal)(uint32_t x, uint32_t y);
     void(*framebuffer_write)(const char* str, uint32_t color, uint32_t restore_to);
 } runtime_services;
@@ -521,6 +522,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
 
     runtime_services.framebuffer_write = lfb_write;
+    runtime_services.refresh_wallpaper = refresh_wallpaper;
     term_write("\n\t\t\tBoot [X]\n\n\t\t\tReboot []", 0x7DF9FF);
 
     uint8_t menuEntry = 0;      // BOOT: 0, REBOOT: 1
