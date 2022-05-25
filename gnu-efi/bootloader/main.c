@@ -54,6 +54,12 @@ struct RuntimeDataAndServices {
         unsigned int height;
         unsigned int ppsl;          // Pixels per scanline.
     } framebuffer_data;
+
+    struct MemoryMap {
+        EFI_MEMORY_DESCRIPTOR* map;
+        UINTN mapSize;
+        UINTN mapDescSize;
+    } mmap;
     
     struct BMP* wallpaper;
 
@@ -303,12 +309,22 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
             // Display some things.
             display_terminal(250, 50);                                   // Display boot menu.
-
-
         }
     }
 #endif
 
+    // Setup the memory map.
+    EFI_MEMORY_DESCRIPTOR* map = NULL;
+    UINTN mapSize, mapKey, descSize;
+    UINT32 descVersion;
+
+    sysTable->BootServices->GetMemoryMap(&mapSize, map, &mapKey, &descSize, &descVersion);
+    sysTable->BootServices->AllocatePool(EfiLoaderData, mapSize, (void**)&map);
+    sysTable->BootServices->GetMemoryMap(&mapSize, map, &mapKey, &descSize, &descVersion);          // Load memory map into memory.
+    
+    runtime_services.mmap.map = map;
+    runtime_services.mmap.mapSize = mapSize;
+    runtime_services.mmap.mapDescSize = descSize;
 
     __asm__ __volatile__("cli; hlt");
 
