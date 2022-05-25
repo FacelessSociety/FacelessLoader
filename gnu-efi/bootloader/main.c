@@ -521,7 +521,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
 
     runtime_services.framebuffer_write = lfb_write;
-    term_write("\t\t\tBOOT [X]\n\n\t\t\tReboot []", 0x7DF9FF);
+    term_write("\n\t\t\tBoot [X]\n\n\t\t\tReboot []", 0x7DF9FF);
 
     uint8_t menuEntry = 0;      // BOOT: 0, REBOOT: 1
     uint8_t loop = 1;
@@ -534,13 +534,13 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
         if (Key.ScanCode == 2 && menuEntry == 0) {
             refresh_wallpaper();
             display_terminal(250, 50);
-            term_write("\t\t\tBOOT []\n\n\t\t\tReboot [X]", 0x7DF9FF);
+            term_write("\n\t\t\tBoot []\n\n\t\t\tReboot [X]", 0x7DF9FF);
             menuEntry = 1;
         } else if (Key.ScanCode == 1 && menuEntry == 1) {
             // Up arrow.
             refresh_wallpaper();
             display_terminal(250, 50);
-            term_write("\t\t\tBOOT [X]\n\n\t\t\tReboot []", 0x7DF9FF);
+            term_write("\n\t\t\tBoot [X]\n\n\t\t\tReboot []", 0x7DF9FF);
             menuEntry = 0;
         } else if (Key.ScanCode == 3) {
             // Right arrow.
