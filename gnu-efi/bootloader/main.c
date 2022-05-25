@@ -6,6 +6,7 @@
 
 
 // 2022 Ian Moffett.
+// 2022 TJ
 
 
 struct __attribute__((packed)) BMP {
