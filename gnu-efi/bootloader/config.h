@@ -5,6 +5,9 @@
 #define USE_WALLPAPER 1
 #define VERBOSE 1
 
+// Outline for boot menu window.
+#define DRAW_OUTLINE 1
+
 // Path in kernel/bin/
 #define WALLPAPER_PATH L"fs.bmp"
 

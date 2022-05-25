@@ -58,6 +58,7 @@ struct RuntimeDataAndServices {
     struct BMP* wallpaper;
 
     void(*display_wallpaper)(void);
+    void(*display_terminal)(uint32_t x, uint32_t y);
 } runtime_services;
 
 
@@ -189,7 +190,6 @@ void blit_wallpaper(uint32_t xpos, uint32_t ypos) {
 
     for (uint64_t y = 0; y < runtime_services.framebuffer_data.height; ++y) {
         char* image_row = img + y * bmp->info_header.width * 3;
-        uint32_t* screen_row = (void*)screen + (bmp->info_header.height - 1 - y) * bmp->info_header.width;
         j = 0;
         for (uint64_t x = 0; x < runtime_services.framebuffer_data.width; ++x) {
             if (x < runtime_services.wallpaper->info_header.width && y < runtime_services.wallpaper->info_header.height) {
@@ -208,7 +208,7 @@ void blit_wallpaper(uint32_t xpos, uint32_t ypos) {
     }
 }
 
-void display_boot_menu(uint32_t xpos, uint32_t ypos) {
+void display_terminal(uint32_t xpos, uint32_t ypos) {
     const uint64_t WIDTH = 1000;
     const uint64_t HEIGHT = 500;
 
@@ -220,6 +220,33 @@ void display_boot_menu(uint32_t xpos, uint32_t ypos) {
             screen[get_pixel_idx(x, y)] = blend_black(old_pixel);
         }
     }
+
+#if DRAW_OUTLINE
+    // Draw a cool outline on the window.
+    // Draw down on left side of window.
+    const uint32_t EDGE_DISTANCE = 4;                   // Distance of outline to outer edges of window.
+    const uint32_t OUTLINE_COLOR = 0x808080;
+    for (uint64_t y = ypos + EDGE_DISTANCE; y < HEIGHT - EDGE_DISTANCE; ++y) {
+        screen[get_pixel_idx(xpos + EDGE_DISTANCE, y)] = OUTLINE_COLOR;
+    }
+
+    // Draw right on bottom of window.
+    for (uint64_t x = xpos + EDGE_DISTANCE; x < WIDTH - EDGE_DISTANCE; ++x) {
+        screen[get_pixel_idx(x, HEIGHT - EDGE_DISTANCE)] = OUTLINE_COLOR;
+    }
+
+    // Draw up on right of window.
+    for (uint64_t y = HEIGHT - EDGE_DISTANCE; y > ypos + EDGE_DISTANCE; --y) {
+        screen[get_pixel_idx(WIDTH - EDGE_DISTANCE, y)] = OUTLINE_COLOR;
+    }
+
+     // Draw right on top of window.
+     // Now we will have an outline!
+    for (uint64_t x = xpos + EDGE_DISTANCE; x < WIDTH - EDGE_DISTANCE; ++x) {
+        screen[get_pixel_idx(x, ypos + EDGE_DISTANCE)] = OUTLINE_COLOR;
+    }
+
+#endif
 }
 
 
@@ -270,8 +297,14 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
         if ((wallpaper->header.signature & 0xFF) == 'B' && (wallpaper->header.signature >> 8) == 'M') {
             read_wallpaper_data(wallpaper);               // Dump data if verbose mode is on.
             display_wallpaper();
+            // Setup runtime services.
             runtime_services.display_wallpaper = display_wallpaper;
-            display_boot_menu(250, 50);                                   // Display boot menu.
+            runtime_services.display_terminal = display_terminal;
+
+            // Display some things.
+            display_terminal(250, 50);                                   // Display boot menu.
+
+
         }
     }
 #endif
