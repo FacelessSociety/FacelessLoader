@@ -119,7 +119,7 @@ struct RuntimeDataAndServices {
     void(*framebuffer_write)(const char* str, uint32_t color, uint32_t restore_to);
     void(*term_write)(const char* str, uint32_t color);
     uint64_t(*get_mmap_entries)(void);
-    FacelessMemoryDescriptor*(*index_mmap)(uint64_t index);
+    struct FacelessMemoryDescriptor*(*index_mmap)(uint64_t index);
 } runtime_services;
 
 #endif
