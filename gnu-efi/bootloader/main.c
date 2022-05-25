@@ -353,6 +353,13 @@ void term_write(const char* str, uint32_t color) {
 
     // Increment cursor x by string size.
     runtime_services.terminal.c_x += (str_sz * 8);
+
+    for (size_t i = 0; i < str_sz; ++i) {
+        if (str[i] == '\n') {
+            runtime_services.terminal.c_y += 20;
+            runtime_services.terminal.c_x = 0;
+        }
+    }
     
     // Restore old canvas position.
     runtime_services.canvas.x = old_canvas_x;
@@ -565,6 +572,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
                 case 0:
                     // Boot.
                     refresh_wallpaper();
+                    display_terminal(250, 50);
                     loop = 0;
                     break;
             }
@@ -617,6 +625,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
     void(*kernel_entry)(struct RuntimeDataAndServices) = ((__attribute__((sysv_abi))void(*)(struct RuntimeDataAndServices))header.e_entry);
     boot_mode = 0;
+    refresh_wallpaper();
     sysTable->BootServices->ExitBootServices(imageHandle, mapKey);
     kernel_entry(runtime_services);
 
