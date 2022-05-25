@@ -37,7 +37,7 @@ struct __attribute__((packed)) BMP {
         uint8_t reserved;
     } color_table;
 
-    uint8_t pixel_data[];
+    char pixel_data[];
 };
 
 
@@ -49,6 +49,8 @@ struct RuntimeDataAndServices {
         unsigned int height;
         unsigned int ppsl;          // Pixels per scanline.
     } framebuffer_data;
+    
+    struct BMP* wallpaper;
 } runtime_services;
 
 
@@ -134,6 +136,31 @@ struct BMP* load_wallpaper(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
     return bmp;
 }
 
+uint32_t get_pixel_idx(int x, int y) {
+  return x + y * runtime_services.framebuffer_data.width;
+}
+
+
+void blit_wallpaper(void) {
+    char* img = runtime_services.wallpaper->pixel_data;
+    uint32_t* screen = runtime_services.framebuffer_data.base_addr;
+
+    struct BMP* bmp = runtime_services.wallpaper; 
+
+    unsigned int j = 0;
+
+    for (uint64_t y = 0; y < bmp->info_header.height; ++y) {
+        char* image_row = img + y * bmp->info_header.width * 3;
+        j = 0;
+        for (uint64_t x = 0; x < bmp->info_header.width; ++x) {
+            uint32_t b = image_row[j++];
+            uint32_t g = image_row[j++];
+            uint32_t r = image_row[j++];
+            screen[get_pixel_idx(x, y)] = (((r << 16) | (g << 8) | (b)) & 0x00FFFFFF);
+        }
+    }
+}
+
 
 void read_wallpaper_data(struct BMP* bmp) {
 #if VERBOSE
@@ -163,12 +190,15 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
 #if USE_WALLPAPER
     struct BMP* wallpaper = load_wallpaper(imageHandle, sysTable);
+    runtime_services.wallpaper = wallpaper;
+
     if (!(wallpaper)) {
         Print(L"Could not load wallpaper!\n");
     } else {
         // Verify that the signature is equal to 'BM'.
         if ((wallpaper->header.signature & 0xFF) == 'B' && (wallpaper->header.signature >> 8) == 'M') {
             read_wallpaper_data(wallpaper);               // Dump data if verbose mode is on.
+            blit_wallpaper();
         }
     }
 #endif
