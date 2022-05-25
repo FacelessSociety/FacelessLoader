@@ -143,25 +143,44 @@ uint32_t get_pixel_idx(int x, int y) {
 }
 
 
+// Just puts it on one section of screen.
 void blit_wallpaper(uint32_t xpos, uint32_t ypos) {
     char* img = runtime_services.wallpaper->pixel_data;
     uint32_t* screen = runtime_services.framebuffer_data.base_addr;
 
     struct BMP* bmp = runtime_services.wallpaper; 
+    uint32_t last_pixel = 0;
 
     unsigned int j = 0;
 
-    for (uint64_t y = 0; y < bmp->info_header.height; ++y) {
+    for (uint64_t y = 0; y < runtime_services.framebuffer_data.height; ++y) {
         char* image_row = img + y * bmp->info_header.width * 3;
         uint32_t* screen_row = (void*)screen + (bmp->info_header.height - 1 - y) * bmp->info_header.width;
         j = 0;
-        for (uint64_t x = 0; x < bmp->info_header.width; ++x) {
-            uint32_t b = image_row[j++];
-            uint32_t g = image_row[j++];
-            uint32_t r = image_row[j++];
-            screen[get_pixel_idx(((xpos + bmp->info_header.width) / 2) + x, ypos + bmp->info_header.height - 1 - y)] = (((r << 16) | (g << 8) | (b)) & 0x00FFFFFF) | 0xFF000000;
+        for (uint64_t x = 0; x < runtime_services.framebuffer_data.width; ++x) {
+            if (x < runtime_services.wallpaper->info_header.width && y < runtime_services.wallpaper->info_header.height) {
+                uint32_t b = image_row[j++];
+                uint32_t g = image_row[j++];
+                uint32_t r = image_row[j++];
+
+                // Keep track of last pixel so we can copy it after x > wallpaper_width.
+                last_pixel = (((r << 16) | (g << 8) | (b)) & 0x00FFFFFF) | 0xFF000000;
+                screen[get_pixel_idx(((xpos + bmp->info_header.width) / 2) + x, ypos + bmp->info_header.height - 1 - y)] = last_pixel;
+            } else {
+                // X > wallpaper_width so we must now copy the last_x_pixel.
+                screen[get_pixel_idx(((xpos + bmp->info_header.width) / 2) + x, ypos + bmp->info_header.height - 1 - y)] = last_pixel;
+            } 
         }
     }
+}
+
+
+// Displays it on whole screen.
+void display_wallpaper(void) {
+        blit_wallpaper(50, 0);
+        blit_wallpaper(50, runtime_services.wallpaper->info_header.height);
+        blit_wallpaper(50, runtime_services.wallpaper->info_header.height*2);
+        blit_wallpaper(runtime_services.framebuffer_data.width + (runtime_services.wallpaper->info_header.width), runtime_services.wallpaper->info_header.height/3);
 }
 
 
@@ -201,7 +220,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
         // Verify that the signature is equal to 'BM'.
         if ((wallpaper->header.signature & 0xFF) == 'B' && (wallpaper->header.signature >> 8) == 'M') {
             read_wallpaper_data(wallpaper);               // Dump data if verbose mode is on.
-            blit_wallpaper(0, 50);
+            display_wallpaper();  
         }
     }
 #endif
