@@ -8,6 +8,11 @@
 // 2022 Ian Moffett.
 // 2022 TJ
 
+#define BLEND_GET_ALPHA(color) ((color >> 24) & 0x000000FF)
+#define BLEND_GET_RED(color)   ((color >> 16)   & 0x000000FF)
+#define BLEND_GET_GREEN(color) ((color >> 8)  & 0x000000FF)
+#define BLEND_GET_BLUE(color)  ((color >> 0)   & 0X000000FF)
+
 
 struct __attribute__((packed)) BMP {
     struct __attribute__((packed)) Header {
@@ -40,7 +45,6 @@ struct __attribute__((packed)) BMP {
 
     char pixel_data[];
 };
-
 
 struct RuntimeDataAndServices {
     struct Framebuffer {
@@ -146,6 +150,33 @@ uint32_t get_pixel_idx(int x, int y) {
 }
 
 
+uint32_t blend_black(uint32_t color1) {
+    uint32_t alpha1 = BLEND_GET_BLUE(color1);
+    uint32_t red1 = BLEND_GET_RED(color1);
+    uint32_t green1 = BLEND_GET_GREEN(color1);
+    uint32_t blue1 = BLEND_GET_BLUE(color1);
+
+    uint32_t alpha2 = BLEND_GET_ALPHA(0x000000);
+    uint32_t red2 = BLEND_GET_RED(0x000000);
+    uint32_t green2 = BLEND_GET_GREEN(0x00000);
+    uint32_t blue2 = BLEND_GET_BLUE(0x00000);
+
+    const float BLEND_AMT = 0.5;
+
+    uint32_t r = (uint32_t)((alpha1 * BLEND_AMT / 255) * red1);
+    uint32_t g = (uint32_t)((alpha1 * BLEND_AMT / 255) * green1);
+    uint32_t b = (uint32_t)((alpha1 * BLEND_AMT / 255) * blue1);
+
+    r += (((255 - alpha1) * BLEND_AMT / 255) * (alpha2 * BLEND_AMT / 255)) * red2;
+    g += (((255 - alpha1) * BLEND_AMT / 255) * (alpha2 * BLEND_AMT / 255)) * green2;
+    b += (((255 - alpha1) * BLEND_AMT / 255) * (alpha2 * BLEND_AMT / 255)) * blue2;
+
+    uint32_t new_alpha = (uint32_t)(alpha1 + ((255 - alpha1) * BLEND_AMT / 255) * alpha2);
+    uint32_t blend_res = (new_alpha << 24) |  (r << 16) | (g << 8) | (b << 0);
+    return blend_res;
+}
+
+
 // Just puts it on one section of screen.
 void blit_wallpaper(uint32_t xpos, uint32_t ypos) {
     char* img = runtime_services.wallpaper->pixel_data;
@@ -177,6 +208,20 @@ void blit_wallpaper(uint32_t xpos, uint32_t ypos) {
     }
 }
 
+void display_boot_menu(uint32_t xpos, uint32_t ypos) {
+    const uint64_t WIDTH = 1000;
+    const uint64_t HEIGHT = 500;
+
+    uint32_t* screen = runtime_services.framebuffer_data.base_addr;
+
+    for (uint64_t y = ypos; y < HEIGHT; ++y) {
+        for (uint64_t x = xpos; x < WIDTH; ++x) {
+            uint32_t old_pixel = screen[get_pixel_idx(x, y)];
+            screen[get_pixel_idx(x, y)] = blend_black(old_pixel);
+        }
+    }
+}
+
 
 // Displays it on whole screen.
 void display_wallpaper(void) {
@@ -185,6 +230,7 @@ void display_wallpaper(void) {
         blit_wallpaper(50, runtime_services.wallpaper->info_header.height*2);
         blit_wallpaper(runtime_services.framebuffer_data.width + (runtime_services.wallpaper->info_header.width), runtime_services.wallpaper->info_header.height/3);
 }
+
 
 
 void read_wallpaper_data(struct BMP* bmp) {
@@ -225,9 +271,11 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
             read_wallpaper_data(wallpaper);               // Dump data if verbose mode is on.
             display_wallpaper();
             runtime_services.display_wallpaper = display_wallpaper;
+            display_boot_menu(250, 50);                                   // Display boot menu.
         }
     }
 #endif
+
 
     __asm__ __volatile__("cli; hlt");
 
