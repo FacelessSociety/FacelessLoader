@@ -19,7 +19,7 @@
 #define PSF1_HEADER_SIZE 4
 #define TITLE "FacelessBoot v0.0.1"
 
-// One if we are in boot menu.
+// If we are in the boot menu.
 uint8_t boot_mode = 1;
 
 struct __attribute__((packed)) BMP {
@@ -101,6 +101,7 @@ struct RuntimeDataAndServices {
     void(*refresh_wallpaper)(void);
     void(*display_terminal)(uint32_t x, uint32_t y);
     void(*framebuffer_write)(const char* str, uint32_t color, uint32_t restore_to);
+    void(*term_write)(const char* str, uint32_t color);
 } runtime_services;
 
 
@@ -455,6 +456,16 @@ void read_wallpaper_data(struct BMP* bmp) {
 }
 
 
+int memcmp(const void* aptr, const void* bptr, size_t n) {
+  const unsigned char* a = aptr, *b = bptr;
+  for (size_t i = 0; i < n; i++) {
+    if (a[i] < b[i]) return -1;
+    else if (a[i] > b[i]) return 1;
+  }
+  return 0;
+}
+
+
 
 /*
  *  This is our entry point.
@@ -523,6 +534,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
     runtime_services.framebuffer_write = lfb_write;
     runtime_services.refresh_wallpaper = refresh_wallpaper;
+    runtime_services.term_write = term_write;
     term_write("\n\t\t\tBoot [X]\n\n\t\t\tReboot []", 0x7DF9FF);
 
     uint8_t menuEntry = 0;      // BOOT: 0, REBOOT: 1
@@ -559,7 +571,54 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
         }
     }
 
-    __asm__ __volatile__("cli; hlt");
+
+    // Load the kernel!
+    EFI_FILE* kernel = load_file(NULL, L"kernel.elf", imageHandle, sysTable);
+
+    if (!(kernel)) {
+        display_terminal(250, 50);
+        term_write("Failed to load kernel.", 0xFF0000);
+        __asm__ __volatile__("cli; hlt");
+    }
+
+    Elf64_Ehdr header;
+    UINTN file_info_sz;
+    kernel->GetInfo(kernel, &gEfiFileInfoGuid, &file_info_sz, NULL);
+    UINTN size = sizeof(header);
+    kernel->Read(kernel, &size, &header);
+
+    if (memcmp(&header.e_ident[EI_MAG0], ELFMAG, SELFMAG) != 0 || 
+            header.e_ident[EI_CLASS] != ELFCLASS64 || 
+            header.e_type != ET_EXEC || 
+            header.e_machine != EM_X86_64 || header.e_version != EV_CURRENT) {
+
+        display_terminal(250, 50);
+        term_write("Kernel ELF header bad!", 0xFF0000);
+        __asm__ __volatile__("cli; hlt");
+    }
+
+    Elf64_Phdr* program_headers;
+    kernel->SetPosition(kernel, header.e_phoff);
+    UINTN program_header_size = header.e_phnum * header.e_phentsize;
+    sysTable->BootServices->AllocatePool(EfiLoaderData, program_header_size, (void**)&program_headers);
+    kernel->Read(kernel, &program_header_size, program_headers);
+
+    for (Elf64_Phdr* phdr = program_headers; (char*)phdr < (char*)program_headers + header.e_phnum * header.e_phentsize; phdr = (Elf64_Phdr*)((char*)phdr + header.e_phentsize)) {
+        if (phdr->p_type == PT_LOAD) {
+            int pages = (phdr->p_memsz + 0x1000 - 1) / 0x1000;
+            Elf64_Addr segment = phdr->p_paddr;
+            sysTable->BootServices->AllocatePages(AllocateAddress, EfiLoaderData, pages, &segment);
+            kernel->SetPosition(kernel, phdr->p_offset);
+            UINTN size = phdr->p_filesz;
+            kernel->Read(kernel, &size, (void*)segment);
+        }
+    }
+
+
+    void(*kernel_entry)(struct RuntimeDataAndServices) = ((__attribute__((sysv_abi))void(*)(struct RuntimeDataAndServices))header.e_entry);
+    boot_mode = 0;
+    sysTable->BootServices->ExitBootServices(imageHandle, mapKey);
+    kernel_entry(runtime_services);
 
     return EFI_SUCCESS;
 }
