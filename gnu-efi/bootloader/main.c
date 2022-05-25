@@ -105,6 +105,10 @@ struct RuntimeDataAndServices {
 } runtime_services;
 
 
+void refresh_wallpaper(void);
+void display_terminal(uint32_t x, uint32_t y);
+
+
 // Sets up graphics output protocol.
 void init_gop(void) {
     EFI_GUID gop_guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
@@ -340,6 +344,7 @@ void blit_wallpaper(uint32_t xpos, uint32_t ypos) {
 }
 
 
+
 void term_write(const char* str, uint32_t color) {
     // Save old canvas position.
     uint32_t old_canvas_x = runtime_services.canvas.x, old_canvas_y = runtime_services.canvas.y;
@@ -350,6 +355,13 @@ void term_write(const char* str, uint32_t color) {
 
     // Get string size.
     size_t str_sz = strlen(str);
+
+
+    // Just clear screen if we printed to much.
+    if (runtime_services.terminal.c_y >= runtime_services.terminal.h) {
+        refresh_wallpaper();
+        display_terminal(250, 50);
+    }
 
     // Increment cursor x by string size.
     runtime_services.terminal.c_x += (str_sz * 8);
