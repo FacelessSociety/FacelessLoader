@@ -63,12 +63,14 @@ void init_gop(void) {
     // Abort if error.
     if (EFI_ERROR(status))
         return;
-    
+
+ 
     runtime_services.framebuffer_data.base_addr = (void*)gop->Mode->FrameBufferBase;
     runtime_services.framebuffer_data.buffer_size = gop->Mode->FrameBufferSize;
     runtime_services.framebuffer_data.width = gop->Mode->Info->HorizontalResolution;
     runtime_services.framebuffer_data.height = gop->Mode->Info->VerticalResolution;
     runtime_services.framebuffer_data.ppsl = gop->Mode->Info->PixelsPerScanLine;
+
 }
 
 
@@ -141,7 +143,7 @@ uint32_t get_pixel_idx(int x, int y) {
 }
 
 
-void blit_wallpaper(void) {
+void blit_wallpaper(uint32_t xpos, uint32_t ypos) {
     char* img = runtime_services.wallpaper->pixel_data;
     uint32_t* screen = runtime_services.framebuffer_data.base_addr;
 
@@ -151,12 +153,13 @@ void blit_wallpaper(void) {
 
     for (uint64_t y = 0; y < bmp->info_header.height; ++y) {
         char* image_row = img + y * bmp->info_header.width * 3;
+        uint32_t* screen_row = (void*)screen + (bmp->info_header.height - 1 - y) * bmp->info_header.width;
         j = 0;
         for (uint64_t x = 0; x < bmp->info_header.width; ++x) {
             uint32_t b = image_row[j++];
             uint32_t g = image_row[j++];
             uint32_t r = image_row[j++];
-            screen[get_pixel_idx(x, y)] = (((r << 16) | (g << 8) | (b)) & 0x00FFFFFF);
+            screen[get_pixel_idx(((xpos + bmp->info_header.width) / 2) + x, ypos + bmp->info_header.height - 1 - y)] = (((r << 16) | (g << 8) | (b)) & 0x00FFFFFF) | 0xFF000000;
         }
     }
 }
@@ -198,7 +201,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
         // Verify that the signature is equal to 'BM'.
         if ((wallpaper->header.signature & 0xFF) == 'B' && (wallpaper->header.signature >> 8) == 'M') {
             read_wallpaper_data(wallpaper);               // Dump data if verbose mode is on.
-            blit_wallpaper();
+            blit_wallpaper(0, 50);
         }
     }
 #endif
