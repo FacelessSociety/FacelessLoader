@@ -10,6 +10,7 @@
 
 // Path in kernel/bin/
 #define WALLPAPER_PATH L"fs.bmp"
+#define PSF1_FONT_PATH L"zap-light16.psf"
 
 
 #endif

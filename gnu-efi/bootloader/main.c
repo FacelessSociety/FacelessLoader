@@ -13,6 +13,11 @@
 #define BLEND_GET_GREEN(color) ((color >> 8)  & 0x000000FF)
 #define BLEND_GET_BLUE(color)  ((color >> 0)   & 0X000000FF)
 
+// Macros for PSF1 font.
+#define PSF1_MAGIC0 0x00000036
+#define PSF1_MAGIC1 0x00000004
+#define PSF1_HEADER_SIZE 3
+
 
 struct __attribute__((packed)) BMP {
     struct __attribute__((packed)) Header {
@@ -60,6 +65,17 @@ struct RuntimeDataAndServices {
         UINTN mapSize;
         UINTN mapDescSize;
     } mmap;
+
+    struct PSF1_FONT_HEADER {
+        unsigned char magic[2];
+        unsigned char mode;
+        unsigned char chsize;
+    } *psf1_font_header;
+
+    struct PSF1_FONT { 
+        struct PSF1_HEADER* header;
+        void* glyphBuffer;
+    } *psf1_font;
     
     struct BMP* wallpaper;
 
@@ -150,6 +166,46 @@ struct BMP* load_wallpaper(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
     bmp_file_handle->Read(bmp_file_handle, &read_size, bmp);
     return bmp;
+}
+
+
+void load_font(EFI_FILE* dir, CHAR16* path, EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
+    EFI_FILE* font = load_file(dir, path, imageHandle, sysTable);
+
+    // Font does not exist!
+    if (!(font)) {
+        runtime_services.psf1_font = NULL;
+        return;
+    }
+
+    // Allocate memory for our font.
+    sysTable->BootServices->AllocatePool(EfiLoaderData, PSF1_HEADER_SIZE, (void**)&runtime_services.psf1_font_header);
+    UINTN header_size = PSF1_HEADER_SIZE;
+    font->Read(font, &header_size, runtime_services.psf1_font_header);
+
+    // Magic bytes incorrect.
+    if (!(runtime_services.psf1_font_header->magic[0] & PSF1_MAGIC0) || !(runtime_services.psf1_font_header->magic[1] & PSF1_MAGIC1)) {
+        runtime_services.psf1_font_header = NULL;
+        return;;
+    }
+
+    UINTN glyphBufferSize = runtime_services.psf1_font_header->chsize * 256;
+    if (runtime_services.psf1_font_header->mode == 1) {
+       glyphBufferSize = runtime_services.psf1_font_header->chsize * 512; 
+    }
+
+    void* glyphBuffer = NULL;
+    font->SetPosition(font, PSF1_HEADER_SIZE);
+    sysTable->BootServices->AllocatePool(EfiLoaderData, glyphBufferSize, (void**)&glyphBuffer);
+
+    // Read glpyhs into memory.
+    font->Read(font, &glyphBufferSize, glyphBuffer);
+    
+    // Allocate memory for font.
+    sysTable->BootServices->AllocatePool(EfiLoaderData, glyphBufferSize+PSF1_HEADER_SIZE, (void**)&runtime_services.psf1_font);
+
+    // Set font glpyh buffer.
+    runtime_services.psf1_font->glyphBuffer = glyphBuffer;
 }
 
 uint32_t get_pixel_idx(int x, int y) {
@@ -292,6 +348,27 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
     InitializeLib(imageHandle, sysTable);
     init_gop();
 
+    // Setup the memory map.
+    EFI_MEMORY_DESCRIPTOR* map = NULL;
+    UINTN mapSize, mapKey, descSize;
+    UINT32 descVersion;
+
+    sysTable->BootServices->GetMemoryMap(&mapSize, map, &mapKey, &descSize, &descVersion);
+    sysTable->BootServices->AllocatePool(EfiLoaderData, mapSize, (void**)&map);
+    sysTable->BootServices->GetMemoryMap(&mapSize, map, &mapKey, &descSize, &descVersion);          // Load memory map into memory.
+    
+    runtime_services.mmap.map = map;
+    runtime_services.mmap.mapSize = mapSize;
+    runtime_services.mmap.mapDescSize = descSize;
+
+    // Load fonts.
+    load_font(NULL, PSF1_FONT_PATH, imageHandle, sysTable);
+
+    if (runtime_services.psf1_font_header == NULL) {
+        Print(L"Could not load %s.\n", PSF1_FONT_PATH);
+        __asm__ __volatile__("cli; hlt");   
+    }
+
 #if USE_WALLPAPER
     struct BMP* wallpaper = load_wallpaper(imageHandle, sysTable);
     runtime_services.wallpaper = wallpaper;
@@ -311,20 +388,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
             display_terminal(250, 50);                                   // Display boot menu.
         }
     }
-#endif
-
-    // Setup the memory map.
-    EFI_MEMORY_DESCRIPTOR* map = NULL;
-    UINTN mapSize, mapKey, descSize;
-    UINT32 descVersion;
-
-    sysTable->BootServices->GetMemoryMap(&mapSize, map, &mapKey, &descSize, &descVersion);
-    sysTable->BootServices->AllocatePool(EfiLoaderData, mapSize, (void**)&map);
-    sysTable->BootServices->GetMemoryMap(&mapSize, map, &mapKey, &descSize, &descVersion);          // Load memory map into memory.
-    
-    runtime_services.mmap.map = map;
-    runtime_services.mmap.mapSize = mapSize;
-    runtime_services.mmap.mapDescSize = descSize;
+#endif 
 
     __asm__ __volatile__("cli; hlt");
 
