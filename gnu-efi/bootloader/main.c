@@ -2,11 +2,16 @@
 #include <efilib.h>
 #include <stddef.h>
 #include <elf.h>
+#include "config.h"
+
+
+// Menu entries.
+const char* entries[10] = ENTRIES;
 
 
 EFI_FILE* load_file(EFI_FILE* directory, CHAR16* path, EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
     EFI_LOADED_IMAGE_PROTOCOL* loaded_img_protocol = NULL;
-    EFI_FILE* filres;
+    EFI_FILE* fileres;
     EFI_STATUS status;      // Just a status var.
 
     // Get protocols.
@@ -17,11 +22,11 @@ EFI_FILE* load_file(EFI_FILE* directory, CHAR16* path, EFI_HANDLE imageHandle, E
     filesystem_protocol->OpenVolume(filesystem_protocol, &directory);
 
     // Open up file.
-    status = directory->Open(directory, &filres, path, EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY);
+    status = directory->Open(directory, &fileres, path, EFI_FILE_MODE_READ, EFI_FILE_READ_ONLY);
 
     // Could not open the file.
     if (status != EFI_SUCCESS) return NULL;
-    return filres;
+    return fileres;
 }
 
 
@@ -38,9 +43,9 @@ EFI_FILE* load_file(EFI_FILE* directory, CHAR16* path, EFI_HANDLE imageHandle, E
  *
  */
 
-EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable) {
-    InitializeLib(imageHandle, systemTable);
-    Print(L"Coming soon!\n");
+EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
+    InitializeLib(imageHandle, sysTable);
+
     __asm__ __volatile__("cli; hlt");
     return EFI_SUCCESS;
 }
