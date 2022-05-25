@@ -99,7 +99,7 @@ struct RuntimeDataAndServices {
     // MAKE SURE TO CHECK BEFORE USING IT.
     void(*display_wallpaper)(void);
     void(*display_terminal)(uint32_t x, uint32_t y);
-    void(*framebuffer_write)(const char* str, uint32_t color);
+    void(*framebuffer_write)(const char* str, uint32_t color, uint32_t restore_to);
 } runtime_services;
 
 
@@ -253,10 +253,24 @@ void putChar(unsigned int color, char chr, unsigned int xOff, unsigned int yOff)
 }
 
 
-void lfb_write(const char* str, uint32_t color) {
+/*
+ *  @str: String to print.
+ *  @color: Color you want the string to be.
+ *  @restore_to: When the x position needs to be reset (i.e during newline)
+ *  it will reset to restore_to.
+ *
+ */
+
+void lfb_write(const char* str, uint32_t color, uint32_t restore_to) {
     size_t str_sz = strlen(str);
     
-    for (size_t i = 0; i < str_sz - 1; ++i) {
+    for (size_t i = 0; i < str_sz; ++i) {
+        if (str[i] == '\n') {
+            runtime_services.canvas.x = restore_to;
+            runtime_services.canvas.y += 20;
+            continue;
+        }
+
         putChar(color, str[i], runtime_services.canvas.x+8, runtime_services.canvas.y);
         runtime_services.canvas.x += 8;             // Increment canvas x.
     }
@@ -327,7 +341,7 @@ void term_write(const char* str, uint32_t color) {
     // Set canvas position to where we want to write on terminal.
     runtime_services.canvas.x = ((runtime_services.terminal.x + 20)) + runtime_services.terminal.c_x;
     runtime_services.canvas.y = runtime_services.terminal.y + 20 + runtime_services.terminal.c_y + 10;
-    lfb_write(str, color);
+    lfb_write(str, color, ((runtime_services.terminal.x + 20)) + runtime_services.terminal.c_x);
 
     // Get string size.
     size_t str_sz = strlen(str);
@@ -499,7 +513,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
 
     runtime_services.framebuffer_write = lfb_write;
-    term_write("Hello, World!", 0xFF0000);
+    term_write("Hello, World!\nHello, World!", 0xFF0000);
 
     __asm__ __volatile__("cli; hlt");
 
