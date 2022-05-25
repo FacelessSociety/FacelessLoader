@@ -269,6 +269,9 @@ void lfb_write(const char* str, uint32_t color, uint32_t restore_to) {
             runtime_services.canvas.x = restore_to;
             runtime_services.canvas.y += 20;
             continue;
+        } else if (str[i] == '\t') {
+            runtime_services.canvas.x += 8*12;
+            continue;
         }
 
         putChar(color, str[i], runtime_services.canvas.x+8, runtime_services.canvas.y);
@@ -436,6 +439,11 @@ void display_wallpaper(void) {
 }
 
 
+void refresh_wallpaper(void) {
+    blit_wallpaper(runtime_services.framebuffer_data.width + (runtime_services.wallpaper->info_header.width), runtime_services.wallpaper->info_header.height/3);
+}
+
+
 
 void read_wallpaper_data(struct BMP* bmp) {
 #if VERBOSE
@@ -513,7 +521,41 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
 
     runtime_services.framebuffer_write = lfb_write;
-    term_write("Hello, World!\nHello, World!", 0xFF0000);
+    term_write("\t\t\tBOOT [X]\n\n\t\t\tReboot []", 0x7DF9FF);
+
+    uint8_t menuEntry = 0;      // BOOT: 0, REBOOT: 1
+    uint8_t loop = 1;
+    EFI_INPUT_KEY Key;
+
+    while (loop) {
+        ST->ConIn->ReadKeyStroke(ST->ConIn, &Key);
+
+        // Down arrow.
+        if (Key.ScanCode == 2 && menuEntry == 0) {
+            refresh_wallpaper();
+            display_terminal(250, 50);
+            term_write("\t\t\tBOOT []\n\n\t\t\tReboot [X]", 0x7DF9FF);
+            menuEntry = 1;
+        } else if (Key.ScanCode == 1 && menuEntry == 1) {
+            // Up arrow.
+            refresh_wallpaper();
+            display_terminal(250, 50);
+            term_write("\t\t\tBOOT [X]\n\n\t\t\tReboot []", 0x7DF9FF);
+            menuEntry = 0;
+        } else if (Key.ScanCode == 3) {
+            // Right arrow.
+            switch (menuEntry) {
+                case 1:
+                     __asm__ __volatile__("out %%al, %%dx" : :"a" (0xFE), "d" (0x64));
+                    break;
+                case 0:
+                    // Boot.
+                    refresh_wallpaper();
+                    loop = 0;
+                    break;
+            }
+        }
+    }
 
     __asm__ __volatile__("cli; hlt");
 
