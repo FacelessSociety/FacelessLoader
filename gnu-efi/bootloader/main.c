@@ -17,7 +17,10 @@
 #define PSF1_MAGIC0 0x00000036
 #define PSF1_MAGIC1 0x00000004
 #define PSF1_HEADER_SIZE 4
+#define TITLE "FacelessBoot v0.0.1"
 
+// One if we are in boot menu.
+uint8_t boot_mode = 1;
 
 struct __attribute__((packed)) BMP {
     struct __attribute__((packed)) Header {
@@ -316,8 +319,8 @@ void term_write(const char* str, uint32_t color) {
     // Save old canvas position.
     uint32_t old_canvas_x = runtime_services.canvas.x, old_canvas_y = runtime_services.canvas.y;
     // Set canvas position to where we want to write on terminal.
-    runtime_services.canvas.x = ((runtime_services.terminal.x)) + runtime_services.terminal.c_x;
-    runtime_services.canvas.y = runtime_services.terminal.y + runtime_services.terminal.c_y + 10;
+    runtime_services.canvas.x = ((runtime_services.terminal.x + 20)) + runtime_services.terminal.c_x;
+    runtime_services.canvas.y = runtime_services.terminal.y + 20 + runtime_services.terminal.c_y + 10;
     lfb_write(str, color);
 
     // Get string size.
@@ -330,6 +333,19 @@ void term_write(const char* str, uint32_t color) {
     // Restore old canvas position.
     runtime_services.canvas.x = old_canvas_x;
     runtime_services.canvas.y = old_canvas_y;
+}
+
+void term_write_xy(const char* str, uint32_t color, uint32_t x, uint32_t y) {
+    // Get string size.
+    size_t str_sz = 0;
+    while (str[str_sz++]);
+    --str_sz;
+
+    // Write it out.
+    for (size_t i = 0; i < str_sz; ++i) {
+        putChar(color, str[i], x, y);
+        x += 8;
+    }
 }
 
 
@@ -356,29 +372,42 @@ void display_terminal(uint32_t xpos, uint32_t ypos) {
 #if DRAW_OUTLINE
     // Draw a cool outline on the window.
     // Draw down on left side of window.
-    const uint32_t EDGE_DISTANCE = 4;                   // Distance of outline to outer edges of window.
+    uint32_t edge_distance = 4;                   // Distance of outline to outer edges of window.
+
+    if (boot_mode) {
+        edge_distance = 20;
+    }
+        
     const uint32_t OUTLINE_COLOR = 0x808080;
-    for (uint64_t y = ypos + EDGE_DISTANCE; y < HEIGHT - EDGE_DISTANCE; ++y) {
-        screen[get_pixel_idx(xpos + EDGE_DISTANCE, y)] = OUTLINE_COLOR;
+    for (uint64_t y = ypos + edge_distance; y < HEIGHT - edge_distance; ++y) {
+        screen[get_pixel_idx(xpos + edge_distance, y)] = OUTLINE_COLOR;
     }
 
     // Draw right on bottom of window.
-    for (uint64_t x = xpos + EDGE_DISTANCE; x < WIDTH - EDGE_DISTANCE; ++x) {
-        screen[get_pixel_idx(x, HEIGHT - EDGE_DISTANCE)] = OUTLINE_COLOR;
+    for (uint64_t x = xpos + edge_distance; x < WIDTH - edge_distance; ++x) {
+        screen[get_pixel_idx(x, HEIGHT - edge_distance)] = OUTLINE_COLOR;
     }
 
     // Draw up on right of window.
-    for (uint64_t y = HEIGHT - EDGE_DISTANCE; y > ypos + EDGE_DISTANCE; --y) {
-        screen[get_pixel_idx(WIDTH - EDGE_DISTANCE, y)] = OUTLINE_COLOR;
+    for (uint64_t y = HEIGHT - edge_distance; y > ypos + edge_distance; --y) {
+        screen[get_pixel_idx(WIDTH - edge_distance, y)] = OUTLINE_COLOR;
     }
 
      // Draw right on top of window.
      // Now we will have an outline!
-    for (uint64_t x = xpos + EDGE_DISTANCE; x < WIDTH - EDGE_DISTANCE; ++x) {
-        screen[get_pixel_idx(x, ypos + EDGE_DISTANCE)] = OUTLINE_COLOR;
+    for (uint64_t x = xpos + edge_distance; x < WIDTH - edge_distance; ++x) {
+        screen[get_pixel_idx(x, ypos + edge_distance)] = OUTLINE_COLOR;
     }
 
 #endif
+
+    // Draw title bar.
+    if (boot_mode) {
+        size_t title_length = 0;
+        while (TITLE[title_length++]);
+        uint32_t xpos_mid = (xpos*2)+(WIDTH/title_length);
+        term_write_xy(TITLE, 0xA9A9A9, xpos_mid, ypos);
+    }
 }
 
 
