@@ -582,8 +582,10 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
 
     // Load the kernel!
     EFI_FILE* kernel = load_file(NULL, L"kernel.elf", imageHandle, sysTable);
+    term_write("kernel.elf has been opened.\n", 0xFFEA00);
 
     if (!(kernel)) {
+        refresh_wallpaper();
         display_terminal(250, 50);
         term_write("Failed to load kernel.", 0xFF0000);
         __asm__ __volatile__("cli; hlt");
@@ -594,22 +596,29 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* sysTable) {
     kernel->GetInfo(kernel, &gEfiFileInfoGuid, &file_info_sz, NULL);
     UINTN size = sizeof(header);
     kernel->Read(kernel, &size, &header);
+    term_write("Kernel read into memory.\n", 0xFFEA00);
 
+    term_write("Checking if ELF header is valid..\n", 0xFFEA00);
     if (memcmp(&header.e_ident[EI_MAG0], ELFMAG, SELFMAG) != 0 || 
             header.e_ident[EI_CLASS] != ELFCLASS64 || 
             header.e_type != ET_EXEC || 
             header.e_machine != EM_X86_64 || header.e_version != EV_CURRENT) {
 
+        refresh_wallpaper();
         display_terminal(250, 50);
         term_write("Kernel ELF header bad!", 0xFF0000);
         __asm__ __volatile__("cli; hlt");
     }
 
+    term_write("Kernel ELF header is valid!\n", 0xFFEA00);
+
     Elf64_Phdr* program_headers;
     kernel->SetPosition(kernel, header.e_phoff);
+    term_write("Kernel ELF position set to program header offset.\n", 0xFFEA00);
     UINTN program_header_size = header.e_phnum * header.e_phentsize;
     sysTable->BootServices->AllocatePool(EfiLoaderData, program_header_size, (void**)&program_headers);
     kernel->Read(kernel, &program_header_size, program_headers);
+    term_write("Program header loaded.\n", 0xFFEA00); 
 
     for (Elf64_Phdr* phdr = program_headers; (char*)phdr < (char*)program_headers + header.e_phnum * header.e_phentsize; phdr = (Elf64_Phdr*)((char*)phdr + header.e_phentsize)) {
         if (phdr->p_type == PT_LOAD) {
