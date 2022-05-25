@@ -50,3 +50,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+<<<<<<< HEAD
+=======
+
+*.img
+logfile.txt
+.#*
+>>>>>>> 376a0dc (First Commit.)
