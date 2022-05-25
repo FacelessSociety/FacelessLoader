@@ -351,17 +351,17 @@ void term_write(const char* str, uint32_t color) {
     // Set canvas position to where we want to write on terminal.
     runtime_services.canvas.x = ((runtime_services.terminal.x + 20)) + runtime_services.terminal.c_x;
     runtime_services.canvas.y = runtime_services.terminal.y + 20 + runtime_services.terminal.c_y + 10;
-    lfb_write(str, color, ((runtime_services.terminal.x + 20)) + runtime_services.terminal.c_x);
-
-    // Get string size.
-    size_t str_sz = strlen(str);
-
 
     // Just clear screen if we printed to much.
     if (runtime_services.terminal.c_y >= runtime_services.terminal.h) {
         refresh_wallpaper();
         display_terminal(250, 50);
-    }
+    } 
+
+    lfb_write(str, color, ((runtime_services.terminal.x + 20)) + runtime_services.terminal.c_x);
+
+    // Get string size.
+    size_t str_sz = strlen(str); 
 
     // Increment cursor x by string size.
     runtime_services.terminal.c_x += (str_sz * 8);
