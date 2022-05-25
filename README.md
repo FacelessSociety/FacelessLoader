@@ -1,5 +1,7 @@
 # FacelessLoader, a simple bootloader.
 
+![Alt loader](https://media.discordapp.net/attachments/954609540207370291/979152195175972914/unknown.png?width=980&height=451)
+
 ### FacelessBootProtocol Specification
 
 Getting started:<br>
